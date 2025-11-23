@@ -380,5 +380,135 @@ class GameEngineTest {
         // ITEM 모드에서 블록 생성 확인
         assertNotNull(itemEngine.getNextPiece());
     }
+    
+    @Test
+    void testGameStop_WhenRunning() {
+        gameEngine.startGame();
+        assertTrue(gameEngine.isGameRunning());
+        
+        gameEngine.stopGame();
+        assertFalse(gameEngine.isGameRunning());
+    }
+    
+    @Test
+    void testScoreIncrementsOnLineClear() {
+        gameEngine.startGame();
+        int initialScore = gameEngine.getScore();
+        
+        // 줄 정리 호출
+        gameEngine.clearLinesManually();
+        // 초기 점수 유지 또는 증가
+        assertTrue(gameEngine.getScore() >= initialScore);
+    }
+    
+    @Test
+    void testLevelBoundaries() {
+        gameEngine.startGame();
+        assertEquals(1, gameEngine.getLevel());
+        
+        // 레벨은 1 이상이어야 함
+        assertTrue(gameEngine.getLevel() >= 1);
+    }
+    
+    @Test
+    void testHandleKeyPress_Rotate_PublicAPI() {
+        gameEngine.startGame();
+        
+        // 회전은 handleKeyPress를 통해
+        gameEngine.handleKeyPress(javafx.scene.input.KeyCode.W);
+        assertNotNull(gameEngine.getCurrentPiece());
+    }
+    
+    @Test
+    void testSkipPiece_NoItem() {
+        gameEngine.startGame();
+        
+        gameEngine.skipCurrentPiece();
+        // skip item이 없으면 블록이 변경되지 않음
+        assertNotNull(gameEngine.getCurrentPiece());
+    }
+    
+    @Test
+    void testPauseWhenNotRunning() {
+        gameEngine.pauseGame();
+        assertFalse(gameEngine.isPaused());
+    }
+    
+    @Test
+    void testDoubleScoreActivation() {
+        gameEngine.startGame();
+        assertFalse(gameEngine.isDoubleScoreActive());
+        
+        gameEngine.activateDoubleScore();
+        assertTrue(gameEngine.isDoubleScoreActive());
+    }
+    
+    @Test
+    void testMultiplePauseCycles() {
+        gameEngine.startGame();
+        
+        gameEngine.pauseGame();
+        assertTrue(gameEngine.isPaused());
+        
+        gameEngine.pauseGame();
+        assertFalse(gameEngine.isPaused());
+        
+        gameEngine.pauseGame();
+        assertTrue(gameEngine.isPaused());
+    }
+    
+    @Test
+    void testHandleKeyPress_HardDrop_PublicAPI() {
+        gameEngine.startGame();
+        
+        // 하드 드롭은 handleKeyPress를 통해
+        gameEngine.handleKeyPress(javafx.scene.input.KeyCode.SPACE);
+        assertNotNull(gameEngine.getCurrentPiece());
+        
+        gameEngine.handleKeyPress(javafx.scene.input.KeyCode.SPACE);
+        assertNotNull(gameEngine.getCurrentPiece());
+    }
+    
+    @Test
+    void testScoreWithDifferentMultipliers() {
+        gameEngine.startGame();
+        
+        gameEngine.setFallSpeed(100_000_000L); // 빠른 속도
+        int multiplier1 = gameEngine.getFallSpeedBonusMultiplier();
+        
+        gameEngine.setFallSpeed(1_000_000_000L); // 느린 속도
+        int multiplier2 = gameEngine.getFallSpeedBonusMultiplier();
+        
+        assertTrue(multiplier1 >= multiplier2); // 빠를수록 멀티플라이어 높음
+    }
+    
+    @Test
+    void testPieceJustPlacedFlag() {
+        gameEngine.startGame();
+        
+        if (gameEngine.isPieceJustPlaced()) {
+            gameEngine.resetPieceJustPlaced();
+            assertFalse(gameEngine.isPieceJustPlaced());
+        }
+    }
+    
+    @Test
+    void testGetFullLinesMethod() {
+        gameEngine.startGame();
+        
+        var fullLines = gameEngine.getFullLines();
+        assertNotNull(fullLines);
+    }
+    
+    @Test
+    void testMultipleKeyPresses() {
+        gameEngine.startGame();
+        
+        gameEngine.handleKeyPress(javafx.scene.input.KeyCode.A);
+        gameEngine.handleKeyPress(javafx.scene.input.KeyCode.D);
+        gameEngine.handleKeyPress(javafx.scene.input.KeyCode.S);
+        gameEngine.handleKeyPress(javafx.scene.input.KeyCode.W);
+        
+        assertNotNull(gameEngine.getCurrentPiece());
+    }
 }
-

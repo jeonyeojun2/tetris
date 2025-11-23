@@ -20,6 +20,7 @@ import tetris.game.BattleGameEngine;
 import tetris.game.GameBoard;
 import tetris.game.Piece;
 import tetris.game.ItemType;
+import tetris.game.PVPGameLogic;
 import tetris.network.GameClient;
 import tetris.network.GameServer;
 import tetris.network.NetworkMessage;
@@ -105,13 +106,15 @@ public class PVPGameScreenController implements Initializable {
     private GameServer gameServer;
     private GameClient gameClient;
     private boolean isServer;
+    
+    // 비즈니스 로직 (테스트 가능)
+    private final PVPGameLogic gameLogic = new PVPGameLogic();
 
     private BattleGameEngine battleEngine;
     private AnimationTimer gameLoop;
     private long lastUpdateTimeMe = 0;
     private long lastUpdateTimeOpponent = 0;
     private long fallSpeedMe = 1_000_000_000;
-    private long fallSpeedOpponent = 1_000_000_000;
     
     // 카운트다운 관련
     private boolean isCountingDown = false;
@@ -143,8 +146,6 @@ public class PVPGameScreenController implements Initializable {
 
     // 랙 감지 관련
     private long currentRTT = 0;
-    private static final long LAG_WARNING_THRESHOLD = 200; // 200ms 이상이면 경고
-    private static final long LAG_CRITICAL_THRESHOLD = 500; // 500ms 이상이면 심각한 랙
     private long lastRTTUpdateTime = 0;
     private static final long RTT_TIMEOUT = 5_000_000_000L; // 5초 동안 RTT 업데이트 없으면 연결 불안정
     
@@ -791,9 +792,7 @@ public class PVPGameScreenController implements Initializable {
             fallSpeedMe = (long) (1_000_000_000 * Math.pow(0.9, getMyEngine().getLevel() - 1));
             getMyEngine().setFallSpeed(fallSpeedMe);
             
-            if (opponentState != null) {
-                fallSpeedOpponent = (long) (1_000_000_000 * Math.pow(0.9, opponentState.getLevel() - 1));
-            }
+            // 상대방 낙하 속도는 상대방이 직접 관리하므로 여기서는 설정하지 않음
         }
     }
 
@@ -1329,14 +1328,21 @@ public class PVPGameScreenController implements Initializable {
                 latencyLabel.setText(text);
                 latencyLabel.setVisible(true);
                 
-                // RTT에 따라 색상 변경
+                // 네트워크 상태 평가 (비즈니스 로직)
+                String networkStatus = gameLogic.evaluateNetworkStatus(currentRTT);
+                
+                // RTT에 따라 색상 변경 (UI 로직)
                 String style = "-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: ";
-                if (currentRTT >= LAG_CRITICAL_THRESHOLD) {
-                    latencyLabel.setStyle(style + "#ff0000;"); // 빨간색
-                } else if (currentRTT >= LAG_WARNING_THRESHOLD) {
-                    latencyLabel.setStyle(style + "#ffaa00;"); // 주황색
-                } else {
-                    latencyLabel.setStyle(style + "#00ff00;"); // 초록색
+                switch (networkStatus) {
+                    case "CRITICAL":
+                        latencyLabel.setStyle(style + "#ff0000;"); // 빨간색
+                        break;
+                    case "WARNING":
+                        latencyLabel.setStyle(style + "#ffaa00;"); // 주황색
+                        break;
+                    default: // "GOOD"
+                        latencyLabel.setStyle(style + "#00ff00;"); // 초록색
+                        break;
                 }
             } else {
                 latencyLabel.setText("RTT: - ms");
@@ -1360,23 +1366,24 @@ public class PVPGameScreenController implements Initializable {
         String warningText = "";
         String warningColor = "";
         
-        // RTT가 5초 이상 업데이트되지 않았으면 연결 불안정
-        if (lastRTTUpdateTime > 0 && (now - lastRTTUpdateTime) > RTT_TIMEOUT) {
+        // RTT가 5초 이상 업데이트되지 않았으면 연결 불안정 (비즈니스 로직)
+        if (gameLogic.isConnectionTimeout(lastRTTUpdateTime, now, RTT_TIMEOUT)) {
             showWarning = true;
             warningText = "⚠ 연결 불안정";
             warningColor = "#ff0000";
         }
-        // RTT가 500ms 이상이면 심각한 랙
-        else if (currentRTT >= LAG_CRITICAL_THRESHOLD) {
-            showWarning = true;
-            warningText = "⚠ 심각한 네트워크 지연";
-            warningColor = "#ff0000";
-        }
-        // RTT가 200ms 이상이면 경고
-        else if (currentRTT >= LAG_WARNING_THRESHOLD) {
-            showWarning = true;
-            warningText = "⚠ 네트워크 지연";
-            warningColor = "#ffaa00";
+        // 네트워크 상태 평가 (비즈니스 로직)
+        else {
+            String networkStatus = gameLogic.evaluateNetworkStatus(currentRTT);
+            if ("CRITICAL".equals(networkStatus)) {
+                showWarning = true;
+                warningText = "⚠ 심각한 네트워크 지연";
+                warningColor = "#ff0000";
+            } else if ("WARNING".equals(networkStatus)) {
+                showWarning = true;
+                warningText = "⚠ 네트워크 지연";
+                warningColor = "#ffaa00";
+            }
         }
         
         if (showWarning) {
@@ -1453,9 +1460,10 @@ public class PVPGameScreenController implements Initializable {
         battleEngine.stopGame();
         
         Platform.runLater(() -> {
-            // 점수 비교
+            // 점수 비교 (비즈니스 로직)
             int myScore = getMyEngine().getScore();
             int opponentScore = opponentState != null ? opponentState.getScore() : 0;
+            String result = gameLogic.determineWinner(myScore, opponentScore);
             
             // 상대방에게 시간 종료 메시지 전송
             Map<String, Object> timeUpData = new HashMap<>();
@@ -1472,16 +1480,20 @@ public class PVPGameScreenController implements Initializable {
                 System.err.println("시간 종료 메시지 전송 실패: " + e.getMessage());
             }
             
-            // 승패 표시
-            if (myScore > opponentScore) {
-                statusLabel.setText("시간 종료! 승리!");
-                statusLabel.setStyle("-fx-text-fill: #00ff00;");
-            } else if (myScore < opponentScore) {
-                statusLabel.setText("시간 종료! 패배...");
-                statusLabel.setStyle("-fx-text-fill: #ff0000;");
-            } else {
-                statusLabel.setText("시간 종료! 무승부");
-                statusLabel.setStyle("-fx-text-fill: #ffff00;");
+            // 승패 표시 (UI 로직)
+            switch (result) {
+                case "WIN":
+                    statusLabel.setText("시간 종료! 승리!");
+                    statusLabel.setStyle("-fx-text-fill: #00ff00;");
+                    break;
+                case "LOSE":
+                    statusLabel.setText("시간 종료! 패배...");
+                    statusLabel.setStyle("-fx-text-fill: #ff0000;");
+                    break;
+                case "DRAW":
+                    statusLabel.setText("시간 종료! 무승부");
+                    statusLabel.setStyle("-fx-text-fill: #ffff00;");
+                    break;
             }
             
             // 게임 오버 버튼 표시

@@ -10,10 +10,13 @@ import javafx.scene.control.TextField;
 import tetris.data.ScoreManager;
 import tetris.ui.SceneManager;
 import tetris.ui.SettingsManager;
+import tetris.ui.services.SettingsValidationService;
 
 import java.net.URL;
 import java.util.Optional;
 import java.util.ResourceBundle;
+import java.util.Map;
+import java.util.HashMap;
 
 public class SettingsController implements Initializable {
 
@@ -58,6 +61,17 @@ public class SettingsController implements Initializable {
 
     private SceneManager sceneManager;
     private SettingsManager settingsManager;
+    private SettingsValidationService validationService;
+
+    // 생성자 주입
+    public SettingsController() {
+        this(new SettingsValidationService());
+    }
+    
+    // 테스트용 생성자
+    public SettingsController(SettingsValidationService validationService) {
+        this.validationService = validationService;
+    }
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
@@ -247,51 +261,42 @@ public class SettingsController implements Initializable {
      * Player1과 Player2의 키 설정이 중복되지 않는지 검사
      */
     private boolean validateKeySettings() {
-        java.util.Set<String> p1Keys = new java.util.HashSet<>();
+        Map<String, String> p1Keys = new HashMap<>();
         if (keyLeftField != null && !keyLeftField.getText().isEmpty()) {
-            p1Keys.add(keyLeftField.getText().toUpperCase());
+            p1Keys.put("left", keyLeftField.getText());
         }
         if (keyRightField != null && !keyRightField.getText().isEmpty()) {
-            p1Keys.add(keyRightField.getText().toUpperCase());
+            p1Keys.put("right", keyRightField.getText());
         }
         if (keyDownField != null && !keyDownField.getText().isEmpty()) {
-            p1Keys.add(keyDownField.getText().toUpperCase());
+            p1Keys.put("down", keyDownField.getText());
         }
         if (keyRotateField != null && !keyRotateField.getText().isEmpty()) {
-            p1Keys.add(keyRotateField.getText().toUpperCase());
+            p1Keys.put("rotate", keyRotateField.getText());
         }
         if (keyHardDropField != null && !keyHardDropField.getText().isEmpty()) {
-            p1Keys.add(keyHardDropField.getText().toUpperCase());
+            p1Keys.put("hardDrop", keyHardDropField.getText());
         }
 
-        // Player2 키가 Player1 키와 중복되는지 확인
+        Map<String, String> p2Keys = new HashMap<>();
         if (keyLeftFieldP2 != null && !keyLeftFieldP2.getText().isEmpty()) {
-            if (p1Keys.contains(keyLeftFieldP2.getText().toUpperCase())) {
-                return false;
-            }
+            p2Keys.put("left", keyLeftFieldP2.getText());
         }
         if (keyRightFieldP2 != null && !keyRightFieldP2.getText().isEmpty()) {
-            if (p1Keys.contains(keyRightFieldP2.getText().toUpperCase())) {
-                return false;
-            }
+            p2Keys.put("right", keyRightFieldP2.getText());
         }
         if (keyDownFieldP2 != null && !keyDownFieldP2.getText().isEmpty()) {
-            if (p1Keys.contains(keyDownFieldP2.getText().toUpperCase())) {
-                return false;
-            }
+            p2Keys.put("down", keyDownFieldP2.getText());
         }
         if (keyRotateFieldP2 != null && !keyRotateFieldP2.getText().isEmpty()) {
-            if (p1Keys.contains(keyRotateFieldP2.getText().toUpperCase())) {
-                return false;
-            }
+            p2Keys.put("rotate", keyRotateFieldP2.getText());
         }
         if (keyHardDropFieldP2 != null && !keyHardDropFieldP2.getText().isEmpty()) {
-            if (p1Keys.contains(keyHardDropFieldP2.getText().toUpperCase())) {
-                return false;
-            }
+            p2Keys.put("hardDrop", keyHardDropFieldP2.getText());
         }
         
-        return true;
+        // 서비스를 사용하여 중복 검사
+        return validationService.findDuplicateKeys(p1Keys, p2Keys).isEmpty();
     }
 
 

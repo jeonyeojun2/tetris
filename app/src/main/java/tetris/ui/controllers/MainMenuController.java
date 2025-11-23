@@ -7,6 +7,8 @@ import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import tetris.ui.SceneManager;
 import tetris.ui.SettingsManager;
+import tetris.ui.services.MenuNavigationService;
+import tetris.ui.services.SettingsValidationService;
 
 import java.net.URL;
 import java.util.ArrayList;
@@ -40,33 +42,30 @@ public class MainMenuController implements Initializable {
     private ImageView backgroundImage;
 
     private SceneManager sceneManager;
+    private MenuNavigationService navigationService;
+    private SettingsValidationService validationService;
     
     private List<Button> menuButtons;
-    private int currentIndex = 0;
+
+    // 생성자 주입
+    public MainMenuController() {
+        this(new MenuNavigationService(), new SettingsValidationService());
+    }
+    
+    // 테스트용 생성자
+    public MainMenuController(MenuNavigationService navigationService, SettingsValidationService validationService) {
+        this.navigationService = navigationService;
+        this.validationService = validationService;
+    }
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         // 배경 이미지 크기 설정
         if (backgroundImage != null) {
             String screenSize = SettingsManager.getInstance().getScreenSize();
-            switch (screenSize) {
-                case "작게":
-                    backgroundImage.setFitWidth(480);
-                    backgroundImage.setFitHeight(720);
-                    break;
-                case "중간":
-                    backgroundImage.setFitWidth(600);
-                    backgroundImage.setFitHeight(900);
-                    break;
-                case "크게":
-                    backgroundImage.setFitWidth(720);
-                    backgroundImage.setFitHeight(1080);
-                    break;
-                default:
-                    backgroundImage.setFitWidth(600);
-                    backgroundImage.setFitHeight(900);
-                    break;
-            }
+            int[] canvasSize = validationService.calculateCanvasSize(screenSize);
+            backgroundImage.setFitWidth(canvasSize[0]);
+            backgroundImage.setFitHeight(canvasSize[1]);
         }
         
         // 메뉴 버튼 리스트 초기화 (왼쪽에서 오른쪽, 위에서 아래 순서)
@@ -79,11 +78,15 @@ public class MainMenuController implements Initializable {
         menuButtons.add(settingsButton);
         menuButtons.add(exitButton);
         
+        // 네비게이션 서비스 초기화
+        navigationService.setMenuItemCount(menuButtons.size());
+        
         // 모든 버튼에 마우스 호버 이벤트 핸들러 추가
         for (Button button : menuButtons) {
             button.setOnMouseEntered(e -> {
                 int index = menuButtons.indexOf(button);
-                if (index != currentIndex) {
+                if (index != navigationService.getCurrentIndex()) {
+                    navigationService.setCurrentIndex(index);
                     selectButton(index);
                 }
             });
@@ -165,18 +168,19 @@ public class MainMenuController implements Initializable {
     }
     
     private void navigateToPreviousButton() {
-        currentIndex = (currentIndex - 1 + menuButtons.size()) % menuButtons.size();
-        selectButton(currentIndex);
-        menuButtons.get(currentIndex).requestFocus();
+        int newIndex = navigationService.navigateToPrevious();
+        selectButton(newIndex);
+        menuButtons.get(newIndex).requestFocus();
     }
     
     private void navigateToNextButton() {
-        currentIndex = (currentIndex + 1) % menuButtons.size();
-        selectButton(currentIndex);
-        menuButtons.get(currentIndex).requestFocus();
+        int newIndex = navigationService.navigateToNext();
+        selectButton(newIndex);
+        menuButtons.get(newIndex).requestFocus();
     }
     
     private void selectCurrentButton() {
+        int currentIndex = navigationService.getCurrentIndex();
         Button currentButton = menuButtons.get(currentIndex);
         if (currentButton == normalModeButton) {
             onStartNormalMode();
@@ -259,9 +263,9 @@ public class MainMenuController implements Initializable {
         clearSelection();
         
         // 새로운 버튼 선택
-        currentIndex = index;
-        menuButtons.get(currentIndex).getStyleClass().add("focused");
-        menuButtons.get(currentIndex).requestFocus();
+        navigationService.setCurrentIndex(index);
+        menuButtons.get(index).getStyleClass().add("focused");
+        menuButtons.get(index).requestFocus();
     }
     
     /**

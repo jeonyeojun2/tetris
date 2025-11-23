@@ -247,5 +247,95 @@ class PieceTest {
         // 유효하지 않은 위치이므로 아이템이 설정되지 않아야 함
         assertTrue(!piece.hasItem() || piece.hasItem()); // 두 경우 모두 가능
     }
+    
+    @Test
+    void testMultipleRotations() {
+        Piece piece = PieceFactory.createRandomPiece();
+        
+        for (int i = 0; i < 8; i++) {
+            piece.rotate();
+            assertNotNull(piece.getShape());
+        }
+    }
+    
+    @Test
+    void testMultipleMovements() {
+        Piece piece = PieceFactory.createRandomPiece();
+        piece.setPosition(10, 10);
+        
+        piece.moveLeft();
+        piece.moveLeft();
+        piece.moveDown();
+        piece.moveRight();
+        piece.moveUp();
+        
+        assertNotNull(piece.getShape());
+    }
+    
+    @Test
+    void testLandedState() {
+        Piece piece = PieceFactory.createRandomPiece();
+        assertFalse(piece.hasLanded());
+        
+        piece.setLanded(true);
+        assertTrue(piece.hasLanded());
+        
+        piece.setLanded(false);
+        assertFalse(piece.hasLanded());
+    }
+    
+    @Test
+    void testGetTypeReturnsValidValue() {
+        Piece piece = PieceFactory.createRandomPiece();
+        int type = piece.getType();
+        
+        assertTrue(type >= 1 && type <= 7);
+    }
+    
+    @Test
+    void testGetRotation() {
+        Piece piece = PieceFactory.createRandomPiece();
+        int rotation = piece.getRotation();
+        
+        assertTrue(rotation >= 0 && rotation < 4);
+    }
+    
+    @Test
+    void testCopyPreservesAllProperties() {
+        Piece original = PieceFactory.createRandomPiece();
+        original.setPosition(7, 14);
+        original.setLanded(true);
+        
+        Piece copy = original.copy();
+        
+        assertEquals(original.getX(), copy.getX());
+        assertEquals(original.getY(), copy.getY());
+        assertEquals(original.getType(), copy.getType());
+        assertEquals(original.hasLanded(), copy.hasLanded());
+    }
+    
+    @Test
+    void testRotateBackUndoesRotate() {
+        Piece piece = PieceFactory.createRandomPiece();
+        int originalRotation = piece.getRotation();
+        
+        piece.rotate();
+        piece.rotateBack();
+        
+        assertEquals(originalRotation, piece.getRotation());
+    }
+    
+    @Test
+    void testShapeNotNullAfterMultipleOperations() {
+        Piece piece = PieceFactory.createRandomPiece();
+        
+        piece.rotate();
+        piece.moveLeft();
+        piece.moveDown();
+        piece.rotateBack();
+        piece.moveRight();
+        
+        assertNotNull(piece.getShape());
+        assertTrue(piece.getShape().length > 0);
+    }
 }
-

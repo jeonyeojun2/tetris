@@ -142,5 +142,94 @@ class SettingsManagerTest {
         // 싱글톤이므로 같은 인스턴스
         assertSame(settings, newInstance);
     }
+    
+    @Test
+    void testKeyLeftP2() {
+        settings.setKeyLeftP2("A");
+        assertEquals("A", settings.getKeyLeftP2());
+    }
+    
+    @Test
+    void testKeyRightP2() {
+        settings.setKeyRightP2("D");
+        assertEquals("D", settings.getKeyRightP2());
+    }
+    
+    @Test
+    void testKeyDownP2() {
+        settings.setKeyDownP2("S");
+        assertEquals("S", settings.getKeyDownP2());
+    }
+    
+    @Test
+    void testKeyRotateP2() {
+        settings.setKeyRotateP2("W");
+        assertEquals("W", settings.getKeyRotateP2());
+    }
+    
+    @Test
+    void testKeyHardDropP2() {
+        settings.setKeyHardDropP2("SHIFT");
+        assertEquals("SHIFT", settings.getKeyHardDropP2());
+    }
+    
+    @Test
+    void testVolumeExactBounds() {
+        settings.setVolume(0.0);
+        assertEquals(0.0, settings.getVolume());
+        
+        settings.setVolume(100.0);
+        assertEquals(100.0, settings.getVolume());
+    }
+    
+    @Test
+    void testScreenSizeOptions() {
+        settings.setScreenSize("작은");
+        assertEquals("작은", settings.getScreenSize());
+        
+        settings.setScreenSize("중간");
+        assertEquals("중간", settings.getScreenSize());
+        
+        settings.setScreenSize("큰");
+        assertEquals("큰", settings.getScreenSize());
+    }
+    
+    @Test
+    void testDifficultyOptions() {
+        settings.setDifficulty("Easy");
+        assertEquals("Easy", settings.getDifficulty());
+        
+        settings.setDifficulty("Normal");
+        assertEquals("Normal", settings.getDifficulty());
+        
+        settings.setDifficulty("Hard");
+        assertEquals("Hard", settings.getDifficulty());
+    }
+    
+    @Test
+    void testMultipleKeyChanges() {
+        settings.setKeyLeft("Q");
+        settings.setKeyRight("E");
+        settings.setKeyDown("S");
+        settings.setKeyRotate("W");
+        
+        assertEquals("Q", settings.getKeyLeft());
+        assertEquals("E", settings.getKeyRight());
+        assertEquals("S", settings.getKeyDown());
+        assertEquals("W", settings.getKeyRotate());
+    }
+    
+    @Test
+    void testSaveToFileAndPersistence() {
+        settings.setVolume(65.5);
+        settings.setDifficulty("Hard");
+        settings.setMusicEnabled(false);
+        settings.setColorBlindModeEnabled(true);
+        settings.saveToFile();
+        
+        // 설정이 저장되었는지 확인
+        assertEquals(65.5, settings.getVolume());
+        assertFalse(settings.isMusicEnabled());
+        assertTrue(settings.isColorBlindModeEnabled());
+    }
 }
-

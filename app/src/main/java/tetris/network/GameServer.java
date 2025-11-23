@@ -245,4 +245,16 @@ public class GameServer {
     public boolean isClientConnected() {
         return clientSocket != null && clientSocket.isConnected() && !clientSocket.isClosed();
     }
+    
+    public boolean isServerRunning() {
+        return isRunning;
+    }
+    
+    public int getPort() {
+        return serverSocket != null ? serverSocket.getLocalPort() : -1;
+    }
+    
+    public boolean hasMessageHandler() {
+        return messageHandler != null;
+    }
 }

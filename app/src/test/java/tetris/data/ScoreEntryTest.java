@@ -45,5 +45,48 @@ class ScoreEntryTest {
         assertTrue(str.contains("Player1"));
         assertTrue(str.contains("1234"));
     }
+    
+    @Test
+    void testCompareToWithDifferentScores() {
+        ScoreEntry high = new ScoreEntry("High", 2000, "Normal", "NORMAL");
+        ScoreEntry low = new ScoreEntry("Low", 100, "Normal", "NORMAL");
+        
+        assertTrue(high.compareTo(low) < 0); // 높은 점수가 더 앞
+        assertTrue(low.compareTo(high) > 0);
+    }
+    
+    @Test
+    void testGetDateReturnsNonNull() {
+        ScoreEntry entry = new ScoreEntry("Test", 500, "Easy", "ITEM");
+        assertNotNull(entry.getDate());
+        assertTrue(entry.getDate() instanceof LocalDateTime);
+    }
+    
+    @Test
+    void testDifferentDifficulties() {
+        ScoreEntry easy = new ScoreEntry("Player", 100, "Easy", "NORMAL");
+        ScoreEntry normal = new ScoreEntry("Player", 100, "Normal", "NORMAL");
+        ScoreEntry hard = new ScoreEntry("Player", 100, "Hard", "NORMAL");
+        
+        assertEquals("Easy", easy.getDifficulty());
+        assertEquals("Normal", normal.getDifficulty());
+        assertEquals("Hard", hard.getDifficulty());
+    }
+    
+    @Test
+    void testDifferentGameModes() {
+        ScoreEntry normalMode = new ScoreEntry("Player", 100, "Normal", "NORMAL");
+        ScoreEntry itemMode = new ScoreEntry("Player", 100, "Normal", "ITEM");
+        
+        assertEquals("NORMAL", normalMode.getGameMode());
+        assertEquals("ITEM", itemMode.getGameMode());
+    }
+    
+    @Test
+    void testEqualsScoreComparison() {
+        ScoreEntry entry1 = new ScoreEntry("Player1", 1500, "Normal", "NORMAL");
+        ScoreEntry entry2 = new ScoreEntry("Player2", 1500, "Normal", "NORMAL");
+        
+        assertEquals(0, entry1.compareTo(entry2));
+    }
 }
-

@@ -195,4 +195,20 @@ public class GameClient {
     public boolean isConnected() {
         return socket != null && socket.isConnected() && !socket.isClosed();
     }
+    
+    public boolean isClientRunning() {
+        return isRunning;
+    }
+    
+    public String getServerAddress() {
+        return socket != null && socket.isConnected() ? socket.getInetAddress().getHostAddress() : null;
+    }
+    
+    public int getServerPort() {
+        return socket != null && socket.isConnected() ? socket.getPort() : -1;
+    }
+    
+    public boolean hasMessageHandler() {
+        return messageHandler != null;
+    }
 }

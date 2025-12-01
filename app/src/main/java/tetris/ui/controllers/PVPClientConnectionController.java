@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.List;
 import java.util.ResourceBundle;
+import java.util.function.Supplier;
 
 public class PVPClientConnectionController implements Initializable {
 
@@ -43,6 +44,7 @@ public class PVPClientConnectionController implements Initializable {
 
     private SceneManager sceneManager;
     private GameClient gameClient;
+    private Supplier<GameClient> gameClientFactory = GameClient::new;
     private static final int SERVER_PORT = 7777;
 
     @Override
@@ -75,6 +77,10 @@ public class PVPClientConnectionController implements Initializable {
 
     public void setSceneManager(SceneManager sceneManager) {
         this.sceneManager = sceneManager;
+    }
+
+    void setGameClientFactory(Supplier<GameClient> factory) {
+        this.gameClientFactory = factory != null ? factory : GameClient::new;
     }
     
     /**
@@ -138,7 +144,7 @@ public class PVPClientConnectionController implements Initializable {
         statusLabel.setText("연결 중...");
         statusLabel.setStyle("-fx-text-fill: #ffff00;");
 
-        gameClient = new GameClient();
+        gameClient = gameClientFactory.get();
         gameClient.setMessageHandler(new GameClient.MessageHandler() {
             @Override
             public void onMessageReceived(Object message) {

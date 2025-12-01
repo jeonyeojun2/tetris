@@ -17,6 +17,7 @@ import tetris.ui.SettingsManager;
 import java.net.URL;
 import java.util.Optional;
 import java.util.ResourceBundle;
+import java.util.function.Function;
 
 public class ScoreBoardController implements Initializable {
 
@@ -44,6 +45,8 @@ public class ScoreBoardController implements Initializable {
     private SceneManager sceneManager;
     private String currentGameMode = "NORMAL";
     private String currentDifficulty = "Normal"; // 기본 난이도
+    private ScoreManager scoreManager = ScoreManager.getInstance();
+    private Function<Alert.AlertType, Alert> alertFactory = Alert::new;
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
@@ -172,18 +175,26 @@ public class ScoreBoardController implements Initializable {
         this.sceneManager = sceneManager;
     }
 
+    void setAlertFactory(Function<Alert.AlertType, Alert> alertFactory) {
+        this.alertFactory = alertFactory != null ? alertFactory : Alert::new;
+    }
+
+    void setScoreManager(ScoreManager scoreManager) {
+        this.scoreManager = scoreManager != null ? scoreManager : ScoreManager.getInstance();
+    }
+
     private void loadScores() {
         if (scoreListView != null) {
             scoreListView.getItems().clear();
             if (currentGameMode.equals("NORMAL")) {
                 // 일반 모드: 난이도별로 필터링
                 scoreListView.getItems().addAll(
-                    ScoreManager.getInstance().getFormattedScoresByDifficulty(currentGameMode, currentDifficulty)
+                    scoreManager.getFormattedScoresByDifficulty(currentGameMode, currentDifficulty)
                 );
             } else {
                 // 아이템 모드: 전체 표시
                 scoreListView.getItems().addAll(
-                    ScoreManager.getInstance().getFormattedScores(currentGameMode)
+                    scoreManager.getFormattedScores(currentGameMode)
                 );
             }
         }
@@ -196,7 +207,7 @@ public class ScoreBoardController implements Initializable {
             ? " [" + currentDifficulty + " 난이도]" 
             : "";
         
-        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        Alert alert = alertFactory.apply(Alert.AlertType.CONFIRMATION);
         alert.setTitle("스코어보드 초기화");
         alert.setHeaderText(modeText + difficultyText + " 점수 기록을 삭제하시겠습니까?");
         alert.setContentText("이 작업은 되돌릴 수 없습니다.");
@@ -205,14 +216,14 @@ public class ScoreBoardController implements Initializable {
         if (result.isPresent() && result.get() == ButtonType.OK) {
             if (currentGameMode.equals("NORMAL")) {
                 // 일반 모드: 난이도별로 삭제
-                ScoreManager.getInstance().clearScoresByDifficulty(currentGameMode, currentDifficulty);
+                scoreManager.clearScoresByDifficulty(currentGameMode, currentDifficulty);
             } else {
                 // 아이템 모드: 전체 삭제
-                ScoreManager.getInstance().clearScores(currentGameMode);
+                scoreManager.clearScores(currentGameMode);
             }
             loadScores();
             
-            Alert infoAlert = new Alert(Alert.AlertType.INFORMATION);
+            Alert infoAlert = alertFactory.apply(Alert.AlertType.INFORMATION);
             infoAlert.setTitle("초기화 완료");
             infoAlert.setHeaderText(null);
             infoAlert.setContentText(modeText + difficultyText + " 스코어보드가 초기화되었습니다.");

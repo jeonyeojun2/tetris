@@ -1,513 +1,469 @@
 package tetris.ui.controllers;
 
-import javafx.fxml.FXMLLoader;
-import javafx.stage.Stage;
-import org.junit.jupiter.api.Test;
+import javafx.animation.AnimationTimer;
+import javafx.scene.canvas.Canvas;
+import javafx.scene.control.Label;
+import javafx.scene.layout.VBox;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import tetris.ui.SceneManager;
-import tetris.network.GameServer;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.testfx.util.WaitForAsyncUtils;
+import tetris.game.BattleGameEngine;
+import tetris.game.GameBoard;
+import tetris.game.GameEngine;
 import tetris.network.GameClient;
-import static org.mockito.Mockito.*;
+import tetris.network.GameStateData;
+import tetris.network.GameServer;
+import tetris.network.NetworkMessage;
+import tetris.ui.SettingsManager;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
-/**
- * Test class for PVPGameScreenController.
- * Tests PVP game screen initialization and core methods.
- */
 class PVPGameScreenControllerTest extends JavaFXTestBase {
 
     private PVPGameScreenController controller;
-    private SceneManager mockSceneManager;
+    private Canvas myCanvas;
+    private Canvas opponentCanvas;
+    private Canvas myNextCanvas;
+    private Canvas opponentNextCanvas;
+    private Canvas myIncomingCanvas;
+    private Canvas opponentIncomingCanvas;
+    private Label statusLabel;
+    private VBox gameOverBox;
+    private Label latencyLabel;
+    private Label lagWarningLabel;
+    private Label timerLabel;
+    private Label myScoreLabel;
+    private Label opponentScoreLabel;
+    private Label myLevelLabel;
+    private Label opponentLevelLabel;
+    private Label myLinesLabel;
+    private Label opponentLinesLabel;
+    private Label myPlayerLabel;
+    private Label opponentPlayerLabel;
+    private Label gameModeLabel;
+    private boolean originalColorBlind;
 
     @BeforeEach
-    void setUp() throws Exception {
+    void setUp() {
+        originalColorBlind = SettingsManager.getInstance().isColorBlindModeEnabled();
         runOnFxThreadAndWait(() -> {
-            try {
-                FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/PVPGameScreen.fxml"));
-                loader.load();
-                controller = loader.getController();
-                
-                Stage mockStage = new Stage();
-                mockSceneManager = new SceneManager(mockStage);
-                
-                controller.setSceneManager(mockSceneManager);
-            } catch (Exception e) {
-                fail("Setup failed: " + e.getMessage());
-            }
+            controller = new PVPGameScreenController();
+            injectBasicUiStructure();
+        });
+    }
+
+    @AfterEach
+    void tearDown() {
+        SettingsManager.getInstance().setColorBlindModeEnabled(originalColorBlind);
+    }
+
+    private void injectBasicUiStructure() {
+        myCanvas = new Canvas();
+        opponentCanvas = new Canvas();
+        myNextCanvas = new Canvas();
+        opponentNextCanvas = new Canvas();
+        myIncomingCanvas = new Canvas();
+        opponentIncomingCanvas = new Canvas();
+        statusLabel = new Label();
+        latencyLabel = new Label();
+        lagWarningLabel = new Label();
+        timerLabel = new Label();
+        myScoreLabel = new Label();
+        opponentScoreLabel = new Label();
+        myLevelLabel = new Label();
+        opponentLevelLabel = new Label();
+        myLinesLabel = new Label();
+        opponentLinesLabel = new Label();
+        myPlayerLabel = new Label();
+        opponentPlayerLabel = new Label();
+        gameOverBox = new VBox();
+        gameOverBox.setVisible(false);
+        gameOverBox.setManaged(false);
+        gameModeLabel = new Label();
+
+        setField("myCanvas", myCanvas);
+        setField("opponentCanvas", opponentCanvas);
+        setField("myNextCanvas", myNextCanvas);
+        setField("opponentNextCanvas", opponentNextCanvas);
+        setField("myIncomingCanvas", myIncomingCanvas);
+        setField("opponentIncomingCanvas", opponentIncomingCanvas);
+        setField("statusLabel", statusLabel);
+        setField("latencyLabel", latencyLabel);
+        setField("lagWarningLabel", lagWarningLabel);
+        setField("timerLabel", timerLabel);
+        setField("myScoreLabel", myScoreLabel);
+        setField("opponentScoreLabel", opponentScoreLabel);
+        setField("myLevelLabel", myLevelLabel);
+        setField("opponentLevelLabel", opponentLevelLabel);
+        setField("myLinesLabel", myLinesLabel);
+        setField("opponentLinesLabel", opponentLinesLabel);
+        setField("myPlayerLabel", myPlayerLabel);
+        setField("opponentPlayerLabel", opponentPlayerLabel);
+        setField("gameOverBox", gameOverBox);
+        setField("gameModeLabel", gameModeLabel);
+        setField("battleEngine", new BattleGameEngine("NORMAL"));
+    }
+
+    private void setField(String fieldName, Object value) {
+        try {
+            Field field = PVPGameScreenController.class.getDeclaredField(fieldName);
+            field.setAccessible(true);
+            field.set(controller, value);
+        } catch (ReflectiveOperationException e) {
+            fail("Failed to set field " + fieldName + ": " + e.getMessage());
+        }
+    }
+
+    private Object getField(String fieldName) {
+        try {
+            Field field = PVPGameScreenController.class.getDeclaredField(fieldName);
+            field.setAccessible(true);
+            return field.get(controller);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Failed to read field " + fieldName, e);
+        }
+    }
+
+    private void invokeSetStatusMessage(String message, String color) {
+        try {
+            Method method = PVPGameScreenController.class.getDeclaredMethod("setStatusMessage", String.class, String.class);
+            method.setAccessible(true);
+            method.invoke(controller, message, color);
+        } catch (ReflectiveOperationException e) {
+            fail("Failed to invoke setStatusMessage: " + e.getMessage());
+        }
+    }
+
+    private void waitForFxEvents() {
+        WaitForAsyncUtils.waitForFxEvents();
+    }
+
+    private GameStateData createGameStateData(int score, int incomingLines) {
+        int[][] board = new int[GameBoard.BOARD_HEIGHT][GameBoard.BOARD_WIDTH];
+        int[][] itemBoard = new int[GameBoard.BOARD_HEIGHT][GameBoard.BOARD_WIDTH];
+        return new GameStateData(
+            board,
+            itemBoard,
+            score,
+            2,
+            4,
+            false,
+            new int[][]{{1}},
+            0,
+            0,
+            1,
+            new int[][]{{2}},
+            2,
+            incomingLines,
+            Arrays.asList(0, 1)
+        );
+    }
+
+    private void setEngineScore(GameEngine engine, int score) {
+        try {
+            Field scoreField = GameEngine.class.getDeclaredField("score");
+            scoreField.setAccessible(true);
+            scoreField.setInt(engine, score);
+        } catch (ReflectiveOperationException e) {
+            fail("Failed to set engine score: " + e.getMessage());
+        }
+    }
+
+    private static class TestAnimationTimer extends AnimationTimer {
+        private boolean stopped;
+
+        @Override
+        public void handle(long now) {
+            // no-op for tests
+        }
+
+        @Override
+        public void stop() {
+            stopped = true;
+        }
+
+        boolean isStopped() {
+            return stopped;
+        }
+    }
+
+    @Test
+    void renderingMethodsHandleColorBlindBoards() {
+        runOnFxThreadAndWait(() -> {
+            SettingsManager.getInstance().setColorBlindModeEnabled(true);
+            controller.setupCanvasSize();
+            BattleGameEngine engine = new BattleGameEngine("NORMAL");
+            setField("battleEngine", engine);
+            setField("isServer", true);
+
+            GameEngine myEngine = engine.getPlayer1Engine();
+            int[][] board = myEngine.getGameBoard().getBoard();
+            board[0][0] = 1;
+            board[1][1] = 2;
+
+            setField("playerLinesToClear", Arrays.asList(0));
+            setField("isAnimatingClear", true);
+
+            GameStateData opponent = createGameStateData(900, 2);
+            setField("opponentState", opponent);
+            setField("opponentIncomingLines", 2);
+
+            engine.addAttackToPlayer1(3, 4);
+
+            controller.renderMyBoard();
+            controller.renderOpponentBoard();
+            controller.renderNextPieces();
+            controller.renderIncomingLines();
+
+            assertEquals(3, engine.getPendingAttacksToPlayer1());
         });
     }
 
     @Test
-    void testControllerCreation() throws Exception {
+    void setupCanvasSizeConfiguresEveryCanvas() {
+        runOnFxThreadAndWait(() -> controller.setupCanvasSize());
+
+        assertEquals(GameBoard.BOARD_WIDTH * 25, myCanvas.getWidth());
+        assertEquals(GameBoard.BOARD_HEIGHT * 25, myCanvas.getHeight());
+        assertEquals(GameBoard.BOARD_WIDTH * 25, opponentCanvas.getWidth());
+        assertEquals(GameBoard.BOARD_HEIGHT * 25, opponentCanvas.getHeight());
+        assertEquals(6 * 25, myNextCanvas.getWidth());
+        assertEquals(5 * 25, myNextCanvas.getHeight());
+        assertEquals(6 * 25, opponentNextCanvas.getWidth());
+        assertEquals(5 * 25, opponentNextCanvas.getHeight());
+        assertEquals(6 * 25, myIncomingCanvas.getWidth());
+        assertEquals(5 * 25, myIncomingCanvas.getHeight());
+        assertEquals(6 * 25, opponentIncomingCanvas.getWidth());
+        assertEquals(5 * 25, opponentIncomingCanvas.getHeight());
+    }
+
+    @Test
+    void receiveAttackQueuesLinesForServerPlayer() {
         runOnFxThreadAndWait(() -> {
-            try {
-                FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/PVPGameScreen.fxml"));
-                loader.load();
-                
-                PVPGameScreenController controller = loader.getController();
-                assertNotNull(controller);
-            } catch (Exception e) {
-                fail("Failed to load PVPGameScreen.fxml: " + e.getMessage());
-            }
+            setField("battleEngine", new BattleGameEngine("NORMAL"));
+            setField("isServer", true);
+            Map<String, Object> data = new HashMap<>();
+            data.put("lines", 3);
+            data.put("emptyCol", 4);
+            controller.receiveNetworkMessage(new NetworkMessage(NetworkMessage.MessageType.ATTACK, data));
+        });
+
+        waitForFxEvents();
+
+        BattleGameEngine engine = (BattleGameEngine) getField("battleEngine");
+        assertEquals(3, engine.getPendingAttacksToPlayer1());
+    }
+
+    @Test
+    void receiveAttackQueuesLinesForClientPlayer() {
+        runOnFxThreadAndWait(() -> {
+            setField("battleEngine", new BattleGameEngine("NORMAL"));
+            setField("isServer", false);
+            Map<String, Object> data = new HashMap<>();
+            data.put("lines", 2);
+            data.put("emptyCol", 1);
+            controller.receiveNetworkMessage(new NetworkMessage(NetworkMessage.MessageType.ATTACK, data));
+        });
+
+        waitForFxEvents();
+
+        BattleGameEngine engine = (BattleGameEngine) getField("battleEngine");
+        assertEquals(2, engine.getPendingAttacksToPlayer2());
+    }
+
+    @Test
+    void receiveGameOverMessageShowsVictoryUi() {
+        TestAnimationTimer timer = new TestAnimationTimer();
+        runOnFxThreadAndWait(() -> {
+            setField("gameLoop", timer);
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("isGameOver", true);
+            controller.receiveNetworkMessage(new NetworkMessage(NetworkMessage.MessageType.GAME_OVER, payload));
+        });
+
+        waitForFxEvents();
+
+        assertEquals("승리!", statusLabel.getText());
+        assertTrue(gameOverBox.isVisible());
+        assertTrue(timer.isStopped(), "Game loop should be stopped when victory arrives");
+    }
+
+    @Test
+    void gameStateUpdateStoresIncomingStateData() {
+        GameStateData stateData = createGameStateData(1200, 4);
+
+        runOnFxThreadAndWait(() ->
+            controller.receiveNetworkMessage(new NetworkMessage(NetworkMessage.MessageType.GAME_STATE_UPDATE, stateData))
+        );
+
+        waitForFxEvents();
+
+        assertSame(stateData, getField("opponentState"));
+        assertEquals(4, ((Integer) getField("opponentIncomingLines")).intValue());
+    }
+
+    @Test
+    void receivePauseMessageTogglesStatusText() {
+        runOnFxThreadAndWait(() -> {
+            BattleGameEngine engine = new BattleGameEngine("NORMAL");
+            engine.startGame();
+            setField("battleEngine", engine);
+            controller.receiveNetworkMessage(new NetworkMessage(NetworkMessage.MessageType.PAUSE, true));
+        });
+        waitForFxEvents();
+        assertEquals("일시 정지 (상대방)", statusLabel.getText());
+
+        runOnFxThreadAndWait(() -> controller.receiveNetworkMessage(new NetworkMessage(NetworkMessage.MessageType.PAUSE, false)));
+        waitForFxEvents();
+        assertEquals("", statusLabel.getText());
+    }
+
+    @Test
+    void disconnectMessageStopsLoopAndShowsStatus() {
+        TestAnimationTimer timer = new TestAnimationTimer();
+        runOnFxThreadAndWait(() -> {
+            setField("gameLoop", timer);
+            controller.receiveNetworkMessage(new NetworkMessage(NetworkMessage.MessageType.DISCONNECT, null));
+        });
+
+        waitForFxEvents();
+
+        assertEquals("Opponent Left", statusLabel.getText());
+        assertTrue(timer.isStopped());
+    }
+
+    @Test
+    void updateLatencyDisplayAppliesThresholdColors() {
+        runOnFxThreadAndWait(() -> {
+            setField("currentRTT", 50L);
+            controller.updateLatencyDisplay();
+        });
+        assertTrue(latencyLabel.getStyle().contains("#00ff00"));
+
+        runOnFxThreadAndWait(() -> {
+            setField("currentRTT", 250L);
+            controller.updateLatencyDisplay();
+        });
+        assertTrue(latencyLabel.getStyle().contains("#ffaa00"));
+
+        runOnFxThreadAndWait(() -> {
+            setField("currentRTT", 600L);
+            controller.updateLatencyDisplay();
+        });
+        assertTrue(latencyLabel.getStyle().contains("#ff0000"));
+    }
+
+    @Test
+    void updateUIRefreshesTimerAndLagWarnings() {
+        runOnFxThreadAndWait(() -> {
+            BattleGameEngine engine = new BattleGameEngine("TIME_LIMIT");
+            engine.startGame();
+            setField("battleEngine", engine);
+            setField("isServer", true);
+            setField("isTimeLimitMode", true);
+            setField("opponentState", createGameStateData(777, 0));
+            setField("currentRTT", 600L);
+            setField("lastRTTUpdateTime", System.nanoTime());
+
+            controller.updateUI();
+
+            assertEquals(String.valueOf(engine.getPlayer1Engine().getScore()), myScoreLabel.getText());
+            assertEquals("777", opponentScoreLabel.getText());
+            assertTrue(lagWarningLabel.isVisible());
+            assertFalse(timerLabel.getText().isEmpty());
+        });
+    }
+
+
+    @Test
+    void sendAttackUsesClientTransport() throws Exception {
+        GameClient client = mock(GameClient.class);
+
+        runOnFxThreadAndWait(() -> {
+            setField("isServer", false);
+            setField("gameClient", client);
+            controller.sendAttack(2, 5);
+        });
+
+        ArgumentCaptor<NetworkMessage> captor = ArgumentCaptor.forClass(NetworkMessage.class);
+        verify(client).sendMessage(captor.capture());
+        NetworkMessage sent = captor.getValue();
+        assertEquals(NetworkMessage.MessageType.ATTACK, sent.getType());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> payload = (Map<String, Object>) sent.getData();
+        assertEquals(2, payload.get("lines"));
+        assertEquals(5, payload.get("emptyCol"));
+    }
+
+    @Test
+    void setStatusMessageAdjustsFont() {
+        runOnFxThreadAndWait(() -> {
+            invokeSetStatusMessage("WIN", "#ffffff");
+            assertTrue(statusLabel.getStyle().contains("24px"));
+
+            invokeSetStatusMessage("이 메시지는 상당히 길어서 작은 폰트를 사용해야 합니다", "#ffffff");
+            assertTrue(statusLabel.getStyle().contains("16px"));
         });
     }
 
     @Test
-    void testSceneManagerSetting() throws Exception {
+    void sendMyStateUsesServerTransport() throws Exception {
+        GameServer server = mock(GameServer.class);
+
         runOnFxThreadAndWait(() -> {
-            try {
-                FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/PVPGameScreen.fxml"));
-                loader.load();
-                
-                PVPGameScreenController controller = loader.getController();
-                Stage mockStage = new Stage();
-                SceneManager sceneManager = new SceneManager(mockStage);
-                
-                controller.setSceneManager(sceneManager);
-                
-                assertNotNull(controller);
-            } catch (Exception e) {
-                fail("Failed to set scene manager: " + e.getMessage());
-            }
+            BattleGameEngine engine = new BattleGameEngine("NORMAL");
+            engine.startGame();
+            setField("battleEngine", engine);
+            setField("isServer", true);
+            setField("gameServer", server);
+            controller.sendMyState();
         });
+
+        ArgumentCaptor<NetworkMessage> captor = ArgumentCaptor.forClass(NetworkMessage.class);
+        verify(server).sendMessage(captor.capture());
+        NetworkMessage sent = captor.getValue();
+        assertEquals(NetworkMessage.MessageType.GAME_STATE_UPDATE, sent.getType());
+        assertTrue(sent.getData() instanceof GameStateData);
     }
 
     @Test
-    void testSetGameMode() throws Exception {
+    void timeUpMessageStopsGameAndShowsResult() {
+        TestAnimationTimer timer = new TestAnimationTimer();
         runOnFxThreadAndWait(() -> {
-            try {
-                FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/PVPGameScreen.fxml"));
-                loader.load();
-                
-                PVPGameScreenController controller = loader.getController();
-                
-                // Test setting game mode
-                controller.setGameMode("NORMAL");
-                controller.setGameMode("ITEM");
-                controller.setGameMode("TIME_LIMIT");
-                
-                assertNotNull(controller);
-            } catch (Exception e) {
-                fail("Failed to set game mode: " + e.getMessage());
-            }
+            BattleGameEngine engine = new BattleGameEngine("NORMAL");
+            engine.startGame();
+            setField("battleEngine", engine);
+            setField("isServer", true);
+            setField("gameLoop", timer);
+            setEngineScore(engine.getPlayer1Engine(), 800);
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("myScore", 600);
+            controller.receiveNetworkMessage(new NetworkMessage(NetworkMessage.MessageType.TIME_UP, payload));
         });
+
+        waitForFxEvents();
+
+        assertEquals("시간 종료! 승리!", statusLabel.getText());
+        assertTrue(gameOverBox.isVisible());
+        assertTrue(timer.isStopped());
     }
 
     @Test
-    void testFXMLLoading() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            try {
-                FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/PVPGameScreen.fxml"));
-                assertNotNull(loader.getLocation(), "PVPGameScreen.fxml should exist");
-                
-                Object root = loader.load();
-                assertNotNull(root, "FXML root should not be null");
-            } catch (Exception e) {
-                fail("Failed to load FXML: " + e.getMessage());
-            }
-        });
-    }
+    void setGameModeUpdatesLabelWithLocalizedText() {
+        runOnFxThreadAndWait(() -> controller.setGameMode("ITEM"));
+        assertEquals("아이템 모드", gameModeLabel.getText());
 
-    @Test
-    void testControllerInitialization() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            try {
-                FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/PVPGameScreen.fxml"));
-                loader.load();
-                
-                PVPGameScreenController controller = loader.getController();
-                assertNotNull(controller, "Controller should be created");
-            } catch (Exception e) {
-                fail("Controller initialization failed: " + e.getMessage());
-            }
-        });
-    }
-
-    // ===== 렌더링 테스트 =====
-
-    @Test
-    void testSetupCanvasSize() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            try {
-                controller.setupCanvasSize();
-                assertNotNull(controller);
-            } catch (Exception e) {
-                fail("setupCanvasSize failed: " + e.getMessage());
-            }
-        });
-    }
-
-    @Test
-    void testRenderMyBoardWithoutEngine() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            try {
-                // 게임 엔진 없이 호출 - NPE 발생하지 않아야 함
-                controller.renderMyBoard();
-                assertNotNull(controller);
-            } catch (Exception e) {
-                fail("renderMyBoard failed: " + e.getMessage());
-            }
-        });
-    }
-
-    @Test
-    void testRenderOpponentBoardWithoutEngine() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            try {
-                // 상대방 상태 없이 호출 - NPE 발생하지 않아야 함
-                controller.renderOpponentBoard();
-                assertNotNull(controller);
-            } catch (Exception e) {
-                fail("renderOpponentBoard failed: " + e.getMessage());
-            }
-        });
-    }
-
-    @Test
-    void testRenderNextPiecesWithoutEngine() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            try {
-                // 게임 엔진 없이 호출
-                controller.renderNextPieces();
-                assertNotNull(controller);
-            } catch (Exception e) {
-                fail("renderNextPieces failed: " + e.getMessage());
-            }
-        });
-    }
-
-    @Test
-    void testRenderIncomingLinesWithoutEngine() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            try {
-                // 게임 엔진 없이 호출
-                controller.renderIncomingLines();
-                assertNotNull(controller);
-            } catch (Exception e) {
-                fail("renderIncomingLines failed: " + e.getMessage());
-            }
-        });
-    }
-
-    // ===== UI 업데이트 테스트 =====
-
-    @Test
-    void testUpdateUIWithoutEngine() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            try {
-                // 게임 엔진 없이 호출 - NPE 발생하지 않아야 함
-                controller.updateUI();
-                assertNotNull(controller);
-            } catch (Exception e) {
-                fail("updateUI failed: " + e.getMessage());
-            }
-        });
-    }
-
-    @Test
-    void testUpdateFallSpeedsWithoutEngine() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            try {
-                // 게임 엔진 없이 호출
-                controller.updateFallSpeeds();
-                assertNotNull(controller);
-            } catch (Exception e) {
-                fail("updateFallSpeeds failed: " + e.getMessage());
-            }
-        });
-    }
-
-    @Test
-    void testUpdateLatencyDisplay() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            try {
-                // 레이턴시 라벨 업데이트 테스트
-                controller.updateLatencyDisplay();
-                assertNotNull(controller);
-            } catch (Exception e) {
-                fail("updateLatencyDisplay failed: " + e.getMessage());
-            }
-        });
-    }
-
-    // ===== 네트워크 상태 전송 테스트 =====
-
-    @Test
-    void testSendMyStateWithoutEngine() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            try {
-                // 게임 엔진 없이 호출 - NPE 발생하지 않아야 함
-                controller.sendMyState();
-                assertNotNull(controller);
-            } catch (Exception e) {
-                fail("sendMyState failed: " + e.getMessage());
-            }
-        });
-    }
-
-    @Test
-    void testSendAttackWithoutNetwork() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            try {
-                // 네트워크 없이 호출 - 예외 발생하지 않아야 함
-                controller.sendAttack(2, 3);
-                assertNotNull(controller);
-            } catch (Exception e) {
-                fail("sendAttack failed: " + e.getMessage());
-            }
-        });
-    }
-
-    // ===== 게임 모드 설정 테스트 =====
-
-    @Test
-    void testSetGameModeNormal() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            try {
-                controller.setGameMode("NORMAL");
-                assertNotNull(controller);
-            } catch (Exception e) {
-                fail("setGameMode NORMAL failed: " + e.getMessage());
-            }
-        });
-    }
-
-    @Test
-    void testSetGameModeItem() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            try {
-                controller.setGameMode("ITEM");
-                assertNotNull(controller);
-            } catch (Exception e) {
-                fail("setGameMode ITEM failed: " + e.getMessage());
-            }
-        });
-    }
-
-    @Test
-    void testSetGameModeTimeLimit() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            try {
-                controller.setGameMode("TIME_LIMIT");
-                assertNotNull(controller);
-            } catch (Exception e) {
-                fail("setGameMode TIME_LIMIT failed: " + e.getMessage());
-            }
-        });
-    }
-
-    // ===== AnimationTimer 통합 테스트 =====
-
-    @Test
-    void testCountdownTimerInitialization() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            try {
-                // 컨트롤러는 AnimationTimer inner class를 포함함
-                assertNotNull(controller);
-                // setGameMode는 AnimationTimer 시작 전에 호출 가능
-                controller.setGameMode("NORMAL");
-            } catch (Exception e) {
-                fail("Countdown timer initialization failed: " + e.getMessage());
-            }
-        });
-    }
-    
-    @Test
-    void testGameLoopWithMockNetwork() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            // Mock 네트워크 객체 생성
-            GameServer mockServer = mock(GameServer.class);
-            GameClient mockClient = mock(GameClient.class);
-            
-            // FXML 로드된 controller로 게임 시작 시도
-            // Label이 null이 아니므로 초기화가 더 진행됨
-            try {
-                controller.setNetworkObjects(mockServer, mockClient, true);
-                // AnimationTimer가 시작되고 게임 루프가 실행됨
-                assertNotNull(controller);
-            } catch (NullPointerException e) {
-                // Canvas나 일부 UI 요소가 없을 수 있으므로 NPE는 허용
-                // 하지만 controller 자체는 생성됨
-                assertNotNull(controller);
-            } catch (Exception e) {
-                fail("Game loop initialization threw unexpected exception: " + e.getMessage());
-            }
-        });
-    }
-    
-    @Test
-    void testGameLoopWithDifferentModes() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            // 다양한 게임 모드 테스트
-            String[] modes = {"NORMAL", "ITEM", "TIME_LIMIT"};
-            
-            for (String mode : modes) {
-                try {
-                    PVPGameScreenController testController = new PVPGameScreenController();
-                    testController.setSceneManager(mockSceneManager);
-                    testController.setGameMode(mode);
-                    assertNotNull(testController);
-                } catch (Exception e) {
-                    fail("Failed to set game mode " + mode + ": " + e.getMessage());
-                }
-            }
-        });
-    }
-
-    // ===== 추가 통합 테스트 =====
-
-    @Test
-    void testSetupCanvasSizeWithAllCanvases() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            try {
-                // 모든 캔버스가 초기화된 상태에서 테스트
-                controller.setupCanvasSize();
-                assertNotNull(controller);
-            } catch (Exception e) {
-                fail("setupCanvasSize with all canvases failed: " + e.getMessage());
-            }
-        });
-    }
-
-    @Test
-    void testMultipleRenderCallsWithoutEngine() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            try {
-                // 여러 렌더링 메서드를 연속으로 호출
-                controller.renderMyBoard();
-                controller.renderOpponentBoard();
-                controller.renderNextPieces();
-                controller.renderIncomingLines();
-                controller.updateUI();
-                assertNotNull(controller);
-            } catch (Exception e) {
-                fail("Multiple render calls failed: " + e.getMessage());
-            }
-        });
-    }
-
-    @Test
-    void testUpdateLatencyDisplayMultipleTimes() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            try {
-                // 여러 번 호출해서 안정성 확인
-                controller.updateLatencyDisplay();
-                controller.updateLatencyDisplay();
-                controller.updateLatencyDisplay();
-                assertNotNull(controller);
-            } catch (Exception e) {
-                fail("Multiple updateLatencyDisplay calls failed: " + e.getMessage());
-            }
-        });
-    }
-
-    @Test
-    void testSendMyStateMultipleTimes() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            try {
-                // 여러 번 상태 전송 시도
-                controller.sendMyState();
-                controller.sendMyState();
-                assertNotNull(controller);
-            } catch (Exception e) {
-                fail("Multiple sendMyState calls failed: " + e.getMessage());
-            }
-        });
-    }
-
-    @Test
-    void testSendAttackWithDifferentValues() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            try {
-                // 다양한 값으로 공격 전송
-                controller.sendAttack(1, 0);
-                controller.sendAttack(2, 5);
-                controller.sendAttack(4, 9);
-                assertNotNull(controller);
-            } catch (Exception e) {
-                fail("sendAttack with different values failed: " + e.getMessage());
-            }
-        });
-    }
-
-    @Test
-    void testAllGameModesInSequence() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            try {
-                // 게임 모드를 순차적으로 변경
-                controller.setGameMode("NORMAL");
-                controller.setGameMode("ITEM");
-                controller.setGameMode("TIME_LIMIT");
-                controller.setGameMode("NORMAL");
-                assertNotNull(controller);
-            } catch (Exception e) {
-                fail("Sequential game mode changes failed: " + e.getMessage());
-            }
-        });
-    }
-
-    @Test
-    void testUpdateFallSpeedsMultipleTimes() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            try {
-                // 낙하 속도 업데이트 여러 번 호출
-                controller.updateFallSpeeds();
-                controller.updateFallSpeeds();
-                controller.updateFallSpeeds();
-                assertNotNull(controller);
-            } catch (Exception e) {
-                fail("Multiple updateFallSpeeds calls failed: " + e.getMessage());
-            }
-        });
-    }
-
-    @Test
-    void testRenderingSequenceWithoutCrash() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            try {
-                // 렌더링 순서대로 호출
-                controller.setupCanvasSize();
-                controller.renderMyBoard();
-                controller.renderOpponentBoard();
-                controller.renderNextPieces();
-                controller.renderIncomingLines();
-                controller.updateUI();
-                controller.updateFallSpeeds();
-                assertNotNull(controller);
-            } catch (Exception e) {
-                fail("Rendering sequence failed: " + e.getMessage());
-            }
-        });
-    }
-
-    @Test
-    void testNetworkOperationsWithoutConnection() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            try {
-                // 네트워크 연결 없이 메서드 호출
-                controller.sendMyState();
-                controller.sendAttack(2, 3);
-                controller.updateLatencyDisplay();
-                assertNotNull(controller);
-            } catch (Exception e) {
-                fail("Network operations without connection failed: " + e.getMessage());
-            }
-        });
-    }
-
-    @Test
-    void testUIUpdateSequence() throws Exception {
-        runOnFxThreadAndWait(() -> {
-            try {
-                // UI 업데이트 시퀀스
-                controller.updateUI();
-                controller.updateLatencyDisplay();
-                controller.updateFallSpeeds();
-                assertNotNull(controller);
-            } catch (Exception e) {
-                fail("UI update sequence failed: " + e.getMessage());
-            }
-        });
+        runOnFxThreadAndWait(() -> controller.setGameMode("TIME_LIMIT"));
+        assertEquals("시간제한 모드", gameModeLabel.getText());
     }
 }

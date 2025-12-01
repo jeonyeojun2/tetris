@@ -1,12 +1,13 @@
 package tetris.ui.controllers;
 
 import javafx.fxml.FXMLLoader;
-import javafx.scene.Scene;
-import javafx.stage.Stage;
 import org.junit.jupiter.api.Test;
 import tetris.ui.SceneManager;
 
+import java.lang.reflect.Field;
+
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 /**
  * Test class for ScoreBoardController.
@@ -19,7 +20,7 @@ class ScoreBoardControllerTest extends JavaFXTestBase {
         runOnFxThreadAndWait(() -> {
             try {
                 FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/ScoreBoard.fxml"));
-                Scene scene = new Scene(loader.load(), 600, 900);
+                loader.load();
                 
                 ScoreBoardController controller = loader.getController();
                 assertNotNull(controller);
@@ -34,15 +35,14 @@ class ScoreBoardControllerTest extends JavaFXTestBase {
         runOnFxThreadAndWait(() -> {
             try {
                 FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/ScoreBoard.fxml"));
-                Scene scene = new Scene(loader.load(), 600, 900);
+                loader.load();
                 
                 ScoreBoardController controller = loader.getController();
-                Stage mockStage = new Stage();
-                SceneManager sceneManager = new SceneManager(mockStage);
+                SceneManager sceneManager = mock(SceneManager.class);
                 
                 controller.setSceneManager(sceneManager);
                 
-                assertNotNull(controller);
+                assertSame(sceneManager, readSceneManager(controller));
             } catch (Exception e) {
                 fail("Failed to set scene manager: " + e.getMessage());
             }
@@ -99,15 +99,25 @@ class ScoreBoardControllerTest extends JavaFXTestBase {
         runOnFxThreadAndWait(() -> {
             try {
                 FXMLLoader loader1 = new FXMLLoader(getClass().getResource("/fxml/ScoreBoard.fxml"));
-                Scene scene1 = new Scene(loader1.load(), 480, 720);
+                loader1.load();
                 assertNotNull(loader1.getController());
                 
                 FXMLLoader loader2 = new FXMLLoader(getClass().getResource("/fxml/ScoreBoard.fxml"));
-                Scene scene2 = new Scene(loader2.load(), 720, 1080);
+                loader2.load();
                 assertNotNull(loader2.getController());
             } catch (Exception e) {
                 fail("Screen sizes test failed: " + e.getMessage());
             }
         });
+    }
+    private SceneManager readSceneManager(ScoreBoardController controller) {
+        try {
+            Field field = ScoreBoardController.class.getDeclaredField("sceneManager");
+            field.setAccessible(true);
+            return (SceneManager) field.get(controller);
+        } catch (ReflectiveOperationException e) {
+            fail("Unable to read sceneManager field: " + e.getMessage());
+            return null;
+        }
     }
 }
